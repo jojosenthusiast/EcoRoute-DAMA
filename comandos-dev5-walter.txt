@@ -1,0 +1,32 @@
+DEV 5 (Walter) — EcoRoute
+Repo: https://github.com/jojosenthusiast/EcoRoute-DAMA
+
+Correr esto DESPUES de que el PR de Angel (Dev 4) ya este mergeado a main.
+
+1. Clonar el repo (ya con todo lo anterior, incluido el theme de Angel):
+
+git clone https://github.com/jojosenthusiast/EcoRoute-DAMA.git
+cd EcoRoute-DAMA
+git config user.name "TU NOMBRE REAL"
+git config user.email "TU_EMAIL_DE_GITHUB@ejemplo.com"
+git checkout -b feature/team-credits-screen
+
+2. Extraer este zip DENTRO de esta misma carpeta EcoRoute-DAMA, reemplazando
+   MainActivity.kt y VecinoScreens.kt cuando lo pregunte. Trae la pantalla nueva
+   CreditosScreen.kt (ya con los 5 nombres reales del equipo), la ruta registrada
+   en MainActivity.kt, la fila "Creditos" agregada en Perfil (VecinoScreens.kt),
+   y docs/submission/team.md ya redactado.
+
+3. Grabar el video (<=5 min, app + sensores fisicos) y armar el PDF final; marcar
+   "Video And PDF" y el resto de "Repository And Team" en
+   docs/submission/checklist.md.
+
+4. Confirmar y subir:
+
+git add app/src/main/java/com/ecoroute/app/CreditosScreen.kt app/src/main/java/com/ecoroute/app/MainActivity.kt app/src/main/java/com/ecoroute/app/VecinoScreens.kt docs/submission/team.md docs/submission/checklist.md
+git commit -m "feat(ecoroute): add team credits screen wired into profile navigation"
+git push -u origin feature/team-credits-screen
+
+5. Abrir un Pull Request hacia main desde tu propia cuenta de GitHub.
+
+Con este PR mergeado queda el historial de los 5 completo.

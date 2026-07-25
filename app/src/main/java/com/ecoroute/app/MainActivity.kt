@@ -11,7 +11,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
@@ -22,7 +21,6 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
         LocalStorage.inicializar(applicationContext)
         lifecycleScope.launch { LocalStorage.cargarDatosIniciales() }
@@ -132,6 +130,9 @@ fun AppNav() {
                 onNav = ::irTab
             )
         }
+        composable("creditos") {
+            CreditosScreen(onBack = { nav.popBackStack() })
+        }
         composable("perfil") {
             PerfilScreen(
                 onNav = ::irTab,
@@ -146,7 +147,12 @@ fun AppNav() {
         composable("recoHome") {
             RutaDeHoyScreen(
                 onNav = ::irTab,
-                onIniciar = { nav.navigate("paradas") }
+                onIniciar = {
+                    scope.launch {
+                        LocalStorage.reiniciarRuta()
+                        nav.navigate("paradas")
+                    }
+                }
             )
         }
         composable("paradas") {

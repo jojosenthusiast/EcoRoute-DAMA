@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +21,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.LocalDrink
@@ -49,7 +49,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
@@ -564,16 +563,8 @@ fun DetallesRecoleccionScreen(onBack: () -> Unit, onRevisar: () -> Unit) {
 fun FilaResumen(clave: String, valor: String) {
     Column {
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-            Text(clave, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                valor,
-                color = Navy,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f)
-            )
+            Text(clave, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(valor, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Borde)
     }
@@ -581,6 +572,7 @@ fun FilaResumen(clave: String, valor: String) {
 
 @Composable
 fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
+    var autorizo by remember { mutableStateOf(AppState.autorizoUbicacion) }
     var guardando by remember { mutableStateOf(false) }
     var errorGuardar by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -606,16 +598,8 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
             FilaResumen("Volumen", "${AppState.bolsas} bolsas ${AppState.tamanoBolsa.lowercase()}s")
             FilaResumen("Horario", AppState.horario)
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-                Text("Ubicación", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    AppState.direccion,
-                    color = Navy,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f)
-                )
+                Text("Ubicación", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(AppState.direccion, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -634,9 +618,30 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
                 Text("Tu solicitud se guardará en este dispositivo.", color = TextoSecundario, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.weight(1f))
             }
         }
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Superficie, RoundedCornerShape(26.dp))
+                .toggleable(
+                    value = autorizo,
+                    role = Role.Checkbox,
+                    onValueChange = { autorizo = it }
+                )
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(44.dp).background(if (autorizo) VerdeCheck else GrisChip, CircleShape),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White) }
+            Spacer(Modifier.width(14.dp))
+            Text("Autorizo compartir esta ubicación para la parada.", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
         Spacer(Modifier.height(28.dp))
         BotonVerde(if (guardando) "Guardando..." else "Enviar solicitud") {
             if (guardando) return@BotonVerde
+            AppState.autorizoUbicacion = autorizo
             guardando = true
             errorGuardar = null
             scope.launch {
@@ -662,15 +667,15 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
 
 @Composable
 fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
-    var solicitudes by remember { mutableStateOf<List<SolicitudEntity>>(emptyList()) }
+    var solicitud by remember { mutableStateOf<SolicitudEntity?>(null) }
     var cargando by remember { mutableStateOf(true) }
     var errorCarga by remember { mutableStateOf(false) }
     LaunchedEffect(AppState.usuarioId) {
         cargando = true
         errorCarga = false
-        solicitudes = emptyList()
+        solicitud = null
         try {
-            solicitudes = LocalStorage.cargarSolicitudesActivasUsuario()
+            solicitud = LocalStorage.cargarUltimaSolicitudUsuario()
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
@@ -691,37 +696,27 @@ fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
             when {
                 cargando -> Text("Cargando solicitud...", color = GrisTexto, fontSize = 14.sp)
                 errorCarga -> Text("No se pudo cargar la solicitud.", color = GrisTexto, fontSize = 14.sp)
-                solicitudes.isEmpty() -> Text("No hay una solicitud activa.", color = GrisTexto, fontSize = 14.sp)
+                solicitud == null -> Text("No hay una solicitud activa.", color = GrisTexto, fontSize = 14.sp)
                 else -> {
-                    solicitudes.forEachIndexed { indice, solicitudActual ->
-                        val completada = solicitudActual.estado == "Completado"
-                        Column(modifier = Modifier.fillMaxWidth().background(VerdeClaro, RoundedCornerShape(20.dp)).padding(20.dp)) {
-                            Text(solicitudActual.estado, color = VerdeBoton, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(18.dp))
-                            PasoSeguimiento("Solicitud enviada", completado = true, esUltimo = false)
-                            PasoSeguimiento(if (completada) "Recolectada" else "En camino", completado = completada, esUltimo = true)
+                    val solicitudActual = solicitud!!
+                    val completada = solicitudActual.estado == "Completado"
+                    Column(modifier = Modifier.fillMaxWidth().background(VerdeClaro, RoundedCornerShape(20.dp)).padding(20.dp)) {
+                        Text(solicitudActual.estado, color = VerdeBoton, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(18.dp))
+                        PasoSeguimiento("Solicitud enviada", completado = true, esUltimo = false)
+                        PasoSeguimiento(if (completada) "Recolectada" else "En camino", completado = completada, esUltimo = true)
+                    }
+                    Spacer(Modifier.height(26.dp))
+                    Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
+                        Text("Solicitud actual", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        FilaResumen("Materiales", solicitudActual.materiales)
+                        FilaResumen("Volumen", "${solicitudActual.bolsas} bolsas")
+                        FilaResumen("Horario", solicitudActual.horario)
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
+                            Text("Referencia", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(solicitudActual.referencia, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(Modifier.height(14.dp))
-                        Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
-                            Text("Solicitud actual", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(10.dp))
-                            FilaResumen("Materiales", solicitudActual.materiales)
-                            FilaResumen("Volumen", "${solicitudActual.bolsas} bolsas")
-                            FilaResumen("Horario", solicitudActual.horario)
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-                                Text("Referencia", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    solicitudActual.referencia,
-                                    color = Navy,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.End,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        if (indice != solicitudes.lastIndex) Spacer(Modifier.height(26.dp))
                     }
                 }
             }
@@ -787,17 +782,11 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(10.dp))
-            BarraTitulo("Historial")
+            BarraTitulo("Historial", onBack = onBack)
             Spacer(Modifier.height(6.dp))
             Text("Tus recolecciones", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 listOf("Todas", "Completadas", "Pendientes").forEach { f ->
                     Box(
                         modifier = Modifier
@@ -950,16 +939,14 @@ fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(14.dp))
-            if (AppState.rol == "recolector") {
-                FilaPreferencia(Icons.Outlined.BatterySaver, "Ahorro de batería", "Reduce la frecuencia de los sensores de la brújula") {
-                    Switch(
-                        modifier = Modifier.semantics { contentDescription = "Ahorro de batería" },
-                        checked = AppState.ahorroBateria,
-                        onCheckedChange = { activo -> scope.launch { LocalStorage.guardarAhorroBateria(activo) } }
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
+            FilaPreferencia(Icons.Outlined.BatterySaver, "Ahorro de batería", "Reduce la frecuencia de los sensores de la brújula") {
+                Switch(
+                    modifier = Modifier.semantics { contentDescription = "Ahorro de batería" },
+                    checked = AppState.ahorroBateria,
+                    onCheckedChange = { activo -> scope.launch { LocalStorage.guardarAhorroBateria(activo) } }
+                )
             }
+            Spacer(Modifier.height(14.dp))
             FilaPreferencia(
                 Icons.Outlined.NotificationsNone,
                 "Notificaciones",
@@ -972,6 +959,17 @@ fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
             }
             Spacer(Modifier.height(14.dp))
             FilaPreferencia(Icons.Outlined.Storage, "Datos y almacenamiento", "Solo local: tus datos no salen de este dispositivo") {}
+            Spacer(Modifier.height(14.dp))
+            FilaPreferencia(
+                Icons.Outlined.Groups,
+                "Créditos",
+                "Equipo que desarrolló EcoRoute",
+                modifier = Modifier
+                    .semantics { role = Role.Button }
+                    .clickable { onNav("creditos") }
+            ) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = GrisTexto)
+            }
             Spacer(Modifier.height(24.dp))
             BotonVerde("Cerrar sesión") { onCerrarSesion() }
         }
