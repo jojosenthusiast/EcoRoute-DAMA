@@ -44,23 +44,23 @@ val TextoSecundario: Color get() = GrisTexto
 val Borde: Color get() = if (AppState.modoOscuro) Color(0xFF3B4D42) else Color(0xFFC9D4CC)
 
 private val ColoresClaros = lightColorScheme(
-    primary = Color(0xFF197A55),
-    onPrimary = Color(0xFFFFFFFF),
-    background = Color(0xFFF7FAF7),
-    surface = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF17211B),
-    onSurface = Color(0xFF17211B),
-    outline = Color(0xFFC9D4CC)
+    primary = FigmaTokens.PrimaryLight,
+    onPrimary = FigmaTokens.OnPrimaryLight,
+    background = FigmaTokens.BackgroundLight,
+    surface = FigmaTokens.SurfaceLight,
+    onBackground = FigmaTokens.OnBackgroundLight,
+    onSurface = FigmaTokens.OnSurfaceLight,
+    outline = FigmaTokens.OutlineLight
 )
 
 private val ColoresOscuros = darkColorScheme(
-    primary = Color(0xFF6ED8A3),
-    onPrimary = Color(0xFF003824),
-    background = Color(0xFF0D1511),
-    surface = Color(0xFF151F19),
-    onBackground = Color(0xFFE8F0EA),
-    onSurface = Color(0xFFE8F0EA),
-    outline = Color(0xFF3B4D42)
+    primary = FigmaTokens.PrimaryDark,
+    onPrimary = FigmaTokens.OnPrimaryDark,
+    background = FigmaTokens.BackgroundDark,
+    surface = FigmaTokens.SurfaceDark,
+    onBackground = FigmaTokens.OnBackgroundDark,
+    onSurface = FigmaTokens.OnSurfaceDark,
+    outline = FigmaTokens.OutlineDark
 )
 
 @Composable
