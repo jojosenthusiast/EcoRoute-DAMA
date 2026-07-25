@@ -8,18 +8,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         LocalStorage.inicializar(applicationContext)
+        lifecycleScope.launch { LocalStorage.cargarDatosIniciales() }
         enableEdgeToEdge()
         setContent {
             val vista = LocalView.current
@@ -42,6 +46,7 @@ class MainActivity : ComponentActivity() {
 @androidx.compose.runtime.Composable
 fun AppNav() {
     val nav: NavHostController = rememberNavController()
+    val scope = rememberCoroutineScope()
 
     fun irTab(ruta: String) {
         nav.navigate(ruta) {
@@ -50,17 +55,36 @@ fun AppNav() {
         }
     }
 
-    NavHost(navController = nav, startDestination = "login") {
+    NavHost(navController = nav, startDestination = "bienvenida") {
+        composable("bienvenida") {
+            BienvenidaScreen(
+                onLogin = { nav.navigate("login") },
+                onCrearCuenta = { nav.navigate("rolRegistro") }
+            )
+        }
         composable("login") {
             LoginScreen(
-                onEntrar = { nav.navigate("rol") },
-                onCrearCuenta = { nav.navigate("registro") }
+                onEntrar = {
+                    val destino = if (AppState.rol == "vecino") "vecinoHome" else "recoHome"
+                    nav.navigate(destino) { popUpTo("bienvenida") { inclusive = true } }
+                },
+                onCrearCuenta = { nav.navigate("rolRegistro") },
+                onRecuperar = { nav.navigate("recuperar") }
+            )
+        }
+        composable("recuperar") {
+            RecuperarContrasenaScreen(onBack = { nav.popBackStack() })
+        }
+        composable("rolRegistro") {
+            ConfiguraExperienciaScreen(
+                onBack = { nav.popBackStack() },
+                onContinuar = { nav.navigate("registro") }
             )
         }
         composable("registro") {
             RegistroScreen(
                 onBack = { nav.popBackStack() },
-                onRegistrado = { nav.navigate("rol") { popUpTo("login") } }
+                onRegistrado = { nav.navigate("permisos") { popUpTo("bienvenida") } }
             )
         }
         composable("rol") {
@@ -117,6 +141,7 @@ fun AppNav() {
                 onNav = ::irTab,
                 onCerrarSesion = {
                     AppState.usuario = ""
+                    AppState.usuarioId = ""
                     nav.navigate("login") { popUpTo(0) { inclusive = true } }
                 }
             )
@@ -126,11 +151,14 @@ fun AppNav() {
             RutaDeHoyScreen(
                 onNav = ::irTab,
                 onIniciar = {
-                    AppState.reiniciarRuta()
-                    nav.navigate("paradas")
+                    scope.launch {
+                        LocalStorage.reiniciarRuta()
+                        nav.navigate("paradas")
+                    }
                 },
                 onCerrar = {
                     AppState.usuario = ""
+                    AppState.usuarioId = ""
                     nav.navigate("login") { popUpTo(0) { inclusive = true } }
                 }
             )

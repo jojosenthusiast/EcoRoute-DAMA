@@ -24,6 +24,7 @@ class Parada(
 object AppState {
     var rol by mutableStateOf("vecino")
     var usuario by mutableStateOf("")
+    var usuarioId by mutableStateOf("")
     var modoOscuro by mutableStateOf(false)
 
     const val LATITUD_CASA = 13.9946
@@ -49,6 +50,12 @@ object AppState {
 
     fun reiniciarRuta() {
         paradas.forEach { it.recolectada = false }
+        paradaActual = 0
+    }
+
+    fun cargarParadas(nuevasParadas: List<Parada>) {
+        paradas.clear()
+        paradas.addAll(nuevasParadas)
         paradaActual = 0
     }
 }

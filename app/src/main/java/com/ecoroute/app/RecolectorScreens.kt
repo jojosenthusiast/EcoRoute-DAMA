@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -288,18 +289,38 @@ fun BrujulaScreen(indice: Int, onBack: () -> Unit, onVerDetalles: () -> Unit, on
     var azimut by remember { mutableFloatStateOf(0f) }
     DisposableEffect(Unit) {
         val sm = contexto.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        val sensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        val acelerometro = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometro = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val gravedad = FloatArray(3)
+        val campoMagnetico = FloatArray(3)
+        var tieneGravedad = false
+        var tieneMagnetico = false
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
-                val matriz = FloatArray(9)
-                SensorManager.getRotationMatrixFromVector(matriz, e.values)
-                val orientacion = FloatArray(3)
-                SensorManager.getOrientation(matriz, orientacion)
-                azimut = Math.toDegrees(orientacion[0].toDouble()).toFloat()
+                when (e.sensor.type) {
+                    Sensor.TYPE_ACCELEROMETER -> {
+                        System.arraycopy(e.values, 0, gravedad, 0, gravedad.size)
+                        tieneGravedad = true
+                    }
+                    Sensor.TYPE_MAGNETIC_FIELD -> {
+                        System.arraycopy(e.values, 0, campoMagnetico, 0, campoMagnetico.size)
+                        tieneMagnetico = true
+                    }
+                }
+                if (tieneGravedad && tieneMagnetico) {
+                    val rotacion = FloatArray(9)
+                    val inclinacion = FloatArray(9)
+                    if (SensorManager.getRotationMatrix(rotacion, inclinacion, gravedad, campoMagnetico)) {
+                        val orientacion = FloatArray(3)
+                        SensorManager.getOrientation(rotacion, orientacion)
+                        azimut = Math.toDegrees(orientacion[0].toDouble()).toFloat()
+                    }
+                }
             }
             override fun onAccuracyChanged(s: Sensor?, a: Int) {}
         }
-        if (sensor != null) sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        if (acelerometro != null) sm.registerListener(listener, acelerometro, SensorManager.SENSOR_DELAY_UI)
+        if (magnetometro != null) sm.registerListener(listener, magnetometro, SensorManager.SENSOR_DELAY_UI)
         onDispose { sm.unregisterListener(listener) }
     }
     val p = AppState.paradas[indice]
@@ -402,6 +423,7 @@ fun BrujulaScreen(indice: Int, onBack: () -> Unit, onVerDetalles: () -> Unit, on
 fun ConfirmarRecoleccionScreen(indice: Int, onBack: () -> Unit, onGuardar: () -> Unit) {
     var bolsas by remember { mutableIntStateOf(2) }
     var nota by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
     val p = AppState.paradas[indice]
     val materiales = p.material.split(" y ").map { it.replaceFirstChar { c -> c.uppercase() } }
     Column(
@@ -479,7 +501,10 @@ fun ConfirmarRecoleccionScreen(indice: Int, onBack: () -> Unit, onGuardar: () ->
             AppState.bolsasReales = bolsas
             AppState.notaRecolector = nota
             AppState.paradas[indice].recolectada = true
-            onGuardar()
+            scope.launch {
+                LocalStorage.guardarParadaRecolectada(indice)
+                onGuardar()
+            }
         }
         Spacer(Modifier.height(30.dp))
     }

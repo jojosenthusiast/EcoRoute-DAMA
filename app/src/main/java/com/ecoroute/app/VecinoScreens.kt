@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 val tabsVecino = listOf(
     TabItem("Inicio", Icons.Outlined.Home, "vecinoHome"),
@@ -368,6 +369,7 @@ fun FilaResumen(clave: String, valor: String) {
 @Composable
 fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
     var autorizo by remember { mutableStateOf(AppState.autorizoUbicacion) }
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -430,7 +432,10 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
         BotonVerde("Enviar solicitud") {
             AppState.autorizoUbicacion = autorizo
             AppState.solicitudEnviada = true
-            onEnviar()
+            scope.launch {
+                LocalStorage.guardarSolicitudActual()
+                onEnviar()
+            }
         }
         Spacer(Modifier.height(30.dp))
     }
@@ -456,6 +461,8 @@ fun PasoSeguimiento(titulo: String, hora: String, completado: Boolean, ultimo: B
 
 @Composable
 fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
+    val materiales = AppState.materiales.joinToString(", ").ifBlank { "Material registrado" }
+    val volumen = "${AppState.bolsas} bolsas"
     Column(modifier = Modifier.fillMaxSize().background(Fondo)) {
         Column(
             modifier = Modifier
@@ -475,6 +482,18 @@ fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                         modifier = Modifier.size(56.dp).background(Superficie, CircleShape),
                         contentAlignment = Alignment.Center
                     ) { Icon(Icons.Outlined.Route, contentDescription = null, tint = Navy, modifier = Modifier.size(26.dp)) }
+                }
+            }
+            Spacer(Modifier.height(26.dp))
+            Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
+                Text("Solicitud actual", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                FilaResumen("Materiales", materiales)
+                FilaResumen("Volumen", volumen)
+                FilaResumen("Horario", AppState.horario)
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
+                    Text("Referencia", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(AppState.referencia.take(24), color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(26.dp))
@@ -519,12 +538,13 @@ data class Recoleccion(val fecha: String, val material: String, val bolsas: Stri
 @Composable
 fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
     var filtro by remember { mutableStateOf("Todos") }
-    val items = listOf(
-        Recoleccion("15 julio", "Plastico y papel", "2 bolsas", "En camino", Icons.Outlined.LocalDrink),
-        Recoleccion("10 julio", "Vidrio", "1 bolsa", "Completado", Icons.Outlined.LocalDrink),
-        Recoleccion("2 julio", "Papel y metal", "3 bolsas", "Completado", Icons.Outlined.Description),
-        Recoleccion("24 julio", "Plastico", "2 bolsas", "Completado", Icons.Outlined.LocalDrink)
-    )
+    var historialRoom by remember { mutableStateOf<List<HistorialEntity>>(emptyList()) }
+    LaunchedEffect(AppState.usuarioId) {
+        historialRoom = LocalStorage.cargarHistorialUsuario()
+    }
+    val items = historialRoom.map {
+        Recoleccion(it.fecha, it.material, it.bolsas, it.estado, Icons.Outlined.LocalDrink)
+    }
     val visibles = when (filtro) {
         "Completados" -> items.filter { it.estado == "Completado" }
         "Pendientes" -> items.filter { it.estado != "Completado" }
@@ -555,6 +575,21 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                 }
             }
             Spacer(Modifier.height(20.dp))
+            if (visibles.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Superficie, RoundedCornerShape(22.dp))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Outlined.Description, contentDescription = null, tint = VerdeBoton, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Aún no hay historial", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Cuando registres una solicitud o completes una recolección, aparecerá aquí.", color = GrisTexto, fontSize = 14.sp, lineHeight = 20.sp)
+                }
+            }
             visibles.forEach { r ->
                 Row(
                     modifier = Modifier
@@ -593,6 +628,7 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
 @Composable
 fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
     val tabs = if (AppState.rol == "vecino") tabsVecino else tabsRecolector
+    val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxSize().background(Fondo)) {
         Column(
             modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
@@ -629,7 +665,9 @@ fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
                 }
                 Switch(
                     checked = AppState.modoOscuro,
-                    onCheckedChange = { LocalStorage.guardarModoOscuro(it) }
+                    onCheckedChange = { activo ->
+                        scope.launch { LocalStorage.guardarModoOscuro(activo) }
+                    }
                 )
             }
             Spacer(Modifier.height(24.dp))

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @Composable
 fun LogoEcoRoute(tamano: Int = 44) {
@@ -57,6 +58,44 @@ fun LogoEcoRoute(tamano: Int = 44) {
                 .size((tamano * 0.4).dp)
                 .background(Color(0xFFF4D525), RoundedCornerShape(topStart = 2.dp, topEnd = (tamano / 2).dp, bottomStart = (tamano / 2).dp, bottomEnd = 2.dp))
         )
+    }
+}
+
+@Composable
+fun BienvenidaScreen(onLogin: () -> Unit, onCrearCuenta: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Fondo)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(70.dp))
+        LogoEcoRoute(86)
+        Spacer(Modifier.height(18.dp))
+        Text("EcoRoute", color = Navy, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Conecta vecinos y recolectores para recuperar materiales de forma ordenada.",
+            color = GrisTexto,
+            fontSize = 16.sp,
+            lineHeight = 24.sp
+        )
+        Spacer(Modifier.height(56.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .background(VerdeClaro, RoundedCornerShape(34.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.Recycling, contentDescription = null, tint = VerdeBoton, modifier = Modifier.size(150.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        BotonVerde("Iniciar sesión") { onLogin() }
+        Spacer(Modifier.height(14.dp))
+        BotonBlanco("Crear cuenta") { onCrearCuenta() }
+        Spacer(Modifier.height(34.dp))
     }
 }
 
@@ -102,10 +141,11 @@ fun CampoTexto(
 }
 
 @Composable
-fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit) {
+fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit, onRecuperar: () -> Unit) {
     var usuario by remember { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -160,12 +200,14 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit) {
                         if (usuario.isBlank() || contrasena.isBlank()) {
                             error = "Escribe tu usuario y contraseña."
                         } else {
-                            val nombre = LocalStorage.iniciarSesion(usuario, contrasena)
-                            if (nombre == null) {
-                                error = "El usuario o la contraseña no son correctos."
-                            } else {
-                                AppState.usuario = nombre
-                                onEntrar()
+                            scope.launch {
+                                val nombre = LocalStorage.iniciarSesion(usuario, contrasena)
+                                if (nombre == null) {
+                                    error = "El usuario o la contraseña no son correctos."
+                                } else {
+                                    AppState.usuario = nombre
+                                    onEntrar()
+                                }
                             }
                         }
                     },
@@ -174,6 +216,14 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit) {
                 Text("Iniciar sesión", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Medium)
             }
         }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "¿Olvidaste tu contraseña?",
+            color = VerdeBoton,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterHorizontally).clickable { onRecuperar() }
+        )
         Spacer(Modifier.height(20.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Text("¿Aún no tienes cuenta? ", color = GrisTexto, fontSize = 15.sp)
@@ -190,12 +240,42 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit) {
 }
 
 @Composable
+fun RecuperarContrasenaScreen(onBack: () -> Unit) {
+    var usuario by remember { mutableStateOf("") }
+    var enviado by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Fondo)
+            .padding(horizontal = 24.dp)
+    ) {
+        Spacer(Modifier.height(10.dp))
+        BarraTitulo("Recuperar contraseña", onBack = onBack, mostrarMenu = false)
+        Spacer(Modifier.height(30.dp))
+        Text("Restablece tu acceso", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Para este prototipo se simula el envío de instrucciones al usuario local.", color = GrisTexto, fontSize = 15.sp, lineHeight = 22.sp)
+        Spacer(Modifier.height(28.dp))
+        Text("Usuario", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        CampoTexto(usuario, "Ingrese su usuario") { usuario = it; enviado = false }
+        if (enviado) {
+            Spacer(Modifier.height(14.dp))
+            Text("Si el usuario existe, se mostrarían instrucciones de recuperación.", color = VerdeBoton, fontSize = 14.sp)
+        }
+        Spacer(Modifier.height(28.dp))
+        BotonVerde("Enviar instrucciones") { enviado = usuario.isNotBlank() }
+    }
+}
+
+@Composable
 fun RegistroScreen(onBack: () -> Unit, onRegistrado: () -> Unit) {
     var nombre by remember { mutableStateOf("") }
     var usuario by remember { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var confirmar by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -237,17 +317,26 @@ fun RegistroScreen(onBack: () -> Unit, onRegistrado: () -> Unit) {
         }
         Spacer(Modifier.height(28.dp))
         BotonVerde("Crear cuenta") {
-            error = when {
+            val validacion = when {
                 nombre.trim().length < 2 -> "Escribe tu nombre."
                 usuario.trim().length < 3 -> "El usuario debe tener al menos 3 caracteres."
                 contrasena.length < 6 -> "La contraseña debe tener al menos 6 caracteres."
                 contrasena != confirmar -> "Las contraseñas no coinciden."
-                !LocalStorage.crearCuenta(nombre, usuario, contrasena) -> "Ese usuario ya está registrado."
                 else -> ""
             }
-            if (error.isBlank()) {
-                AppState.usuario = nombre.trim()
-                onRegistrado()
+            if (validacion.isNotBlank()) {
+                error = validacion
+            } else {
+                scope.launch {
+                    val creada = LocalStorage.crearCuenta(nombre, usuario, contrasena, AppState.rol)
+                    if (!creada) {
+                        error = "Ese usuario ya está registrado."
+                    } else {
+                        error = ""
+                        AppState.usuario = nombre.trim()
+                        onRegistrado()
+                    }
+                }
             }
         }
         Spacer(Modifier.height(36.dp))
@@ -285,6 +374,7 @@ fun TarjetaRol(titulo: String, descripcion: String, icono: ImageVector, colorIco
 @Composable
 fun ConfiguraExperienciaScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
     var rol by remember { mutableStateOf(AppState.rol) }
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -315,8 +405,10 @@ fun ConfiguraExperienciaScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
         Text("Diseñador para funcionar con pocos datos y bajo consumo...", color = GrisTexto, fontSize = 14.sp)
         Spacer(Modifier.height(16.dp))
         BotonVerde("Continuar") {
-            AppState.rol = rol
-            onContinuar()
+            scope.launch {
+                LocalStorage.guardarRolUsuario(rol)
+                onContinuar()
+            }
         }
         Spacer(Modifier.height(30.dp))
     }
