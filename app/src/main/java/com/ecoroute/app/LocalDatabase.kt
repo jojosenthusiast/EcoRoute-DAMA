@@ -34,16 +34,21 @@ data class SolicitudEntity(
     val usuarioId: String,
     val materiales: String,
     val bolsas: Int,
+    val tamanoBolsa: String = "Mediana",
     val horario: String,
     val referencia: String,
     val direccion: String,
+    val latitud: Double,
+    val longitud: Double,
     val estado: String,
-    val creadaEn: Long
+    val creadaEn: Long,
+    val recolectorAsignado: String? = null
 )
 
-@Entity(tableName = "paradas")
+@Entity(tableName = "paradas", primaryKeys = ["usuarioId", "id"])
 data class ParadaEntity(
-    @PrimaryKey val id: Int,
+    val usuarioId: String,
+    val id: Int,
     val nombre: String,
     val direccion: String,
     val material: String,
@@ -54,7 +59,8 @@ data class ParadaEntity(
     val referencia: String,
     val latitud: Double,
     val longitud: Double,
-    val recolectada: Boolean
+    val recolectada: Boolean,
+    val solicitudId: Long? = null
 )
 
 @Entity(tableName = "historial_recolecciones")
@@ -65,7 +71,8 @@ data class HistorialEntity(
     val material: String,
     val bolsas: String,
     val estado: String,
-    val creadaEn: Long
+    val creadaEn: Long,
+    val solicitudId: Long? = null
 )
 
 @Dao
@@ -99,6 +106,21 @@ interface SolicitudDao {
 
     @Query("SELECT * FROM solicitudes WHERE usuarioId = :usuarioId ORDER BY creadaEn DESC")
     suspend fun listarDeUsuario(usuarioId: String): List<SolicitudEntity>
+
+    @Query("SELECT * FROM solicitudes WHERE estado = 'En camino' AND (recolectorAsignado IS NULL OR recolectorAsignado = :usuarioId) ORDER BY creadaEn ASC")
+    suspend fun listarActivas(usuarioId: String): List<SolicitudEntity>
+
+    @Query("SELECT * FROM solicitudes WHERE usuarioId = :usuarioId AND estado != 'Completado' ORDER BY creadaEn ASC")
+    suspend fun listarActivasDeUsuario(usuarioId: String): List<SolicitudEntity>
+
+    @Query("SELECT * FROM solicitudes WHERE id = :id LIMIT 1")
+    suspend fun obtenerPorId(id: Long): SolicitudEntity?
+
+    @Query("UPDATE solicitudes SET estado = :estado, bolsas = :bolsas WHERE id = :id")
+    suspend fun actualizarEstadoYBolsas(id: Long, estado: String, bolsas: Int)
+
+    @Query("UPDATE solicitudes SET recolectorAsignado = :recolectorId WHERE id = :id")
+    suspend fun asignarRecolector(id: Long, recolectorId: String)
 }
 
 @Dao
@@ -109,14 +131,23 @@ interface ParadaDao {
     @Update
     suspend fun actualizar(parada: ParadaEntity)
 
-    @Query("SELECT * FROM paradas ORDER BY id ASC")
-    suspend fun listar(): List<ParadaEntity>
+    @Query("SELECT * FROM paradas WHERE usuarioId = :usuarioId ORDER BY (solicitudId IS NULL) ASC, id ASC")
+    suspend fun listarDeUsuario(usuarioId: String): List<ParadaEntity>
 
-    @Query("SELECT COUNT(*) FROM paradas")
-    suspend fun contar(): Int
+    @Query("SELECT COUNT(*) FROM paradas WHERE usuarioId = :usuarioId")
+    suspend fun contarDeUsuario(usuarioId: String): Int
 
-    @Query("UPDATE paradas SET recolectada = 0")
-    suspend fun reiniciarRuta()
+    @Query("UPDATE paradas SET recolectada = 0 WHERE usuarioId = :usuarioId")
+    suspend fun reiniciarRutaDeUsuario(usuarioId: String)
+
+    @Query("SELECT COALESCE(MAX(id), 0) FROM paradas WHERE usuarioId = :usuarioId")
+    suspend fun maxIdDeUsuario(usuarioId: String): Int
+
+    @Query("SELECT solicitudId FROM paradas WHERE usuarioId = :usuarioId AND solicitudId IS NOT NULL")
+    suspend fun listarSolicitudIdsDeUsuario(usuarioId: String): List<Long>
+
+    @Query("DELETE FROM paradas WHERE usuarioId = :usuarioId AND solicitudId IS NULL AND recolectada = 0")
+    suspend fun eliminarDemoDeUsuario(usuarioId: String)
 }
 
 @Dao
@@ -124,8 +155,14 @@ interface HistorialDao {
     @Insert
     suspend fun insertar(historial: HistorialEntity): Long
 
+    @Insert
+    suspend fun insertarTodas(historial: List<HistorialEntity>)
+
     @Query("SELECT * FROM historial_recolecciones WHERE usuarioId = :usuarioId ORDER BY creadaEn DESC")
     suspend fun listarDeUsuario(usuarioId: String): List<HistorialEntity>
+
+    @Query("UPDATE historial_recolecciones SET estado = :estado, bolsas = :bolsas WHERE solicitudId = :solicitudId AND usuarioId = :usuarioId")
+    suspend fun actualizarPorSolicitudYUsuario(solicitudId: Long, usuarioId: String, estado: String, bolsas: String)
 }
 
 @Database(
@@ -136,7 +173,7 @@ interface HistorialDao {
         ParadaEntity::class,
         HistorialEntity::class
     ],
-    version = 1,
+    version = 6,
     exportSchema = false
 )
 abstract class EcoRouteDatabase : RoomDatabase() {
@@ -155,7 +192,7 @@ abstract class EcoRouteDatabase : RoomDatabase() {
                     contexto.applicationContext,
                     EcoRouteDatabase::class.java,
                     "ecoroute.db"
-                ).build().also { instancia = it }
+                ).fallbackToDestructiveMigration().build().also { instancia = it }
             }
         }
     }

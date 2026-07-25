@@ -1,8 +1,14 @@
 package com.ecoroute.app
 
+import android.app.NotificationManager
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +20,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Inventory2
@@ -22,6 +29,7 @@ import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -34,9 +42,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 val tabsVecino = listOf(
@@ -47,21 +63,44 @@ val tabsVecino = listOf(
 )
 
 @Composable
-fun MapaCasa(modifier: Modifier = Modifier) {
+fun MapaCasa(
+    modifier: Modifier = Modifier,
+    latitud: Double = AppState.LATITUD_CASA,
+    longitud: Double = AppState.LONGITUD_CASA,
+    expandible: Boolean = false,
+    onTocarMapa: ((Double, Double) -> Unit)? = null
+) {
     MapaReal(
-        puntos = listOf(
-            PuntoMapa(
-                "Punto de recolección",
-                AppState.LATITUD_CASA,
-                AppState.LONGITUD_CASA
-            )
-        ),
-        modifier = modifier.fillMaxWidth()
+        puntos = listOf(PuntoMapa("Punto de recolección", latitud, longitud)),
+        modifier = modifier.fillMaxWidth(),
+        expandible = expandible,
+        onTocarMapa = onTocarMapa
     )
 }
 
 @Composable
 fun HomeVecinoScreen(onNav: (String) -> Unit) {
+    var solicitud by remember { mutableStateOf<SolicitudEntity?>(null) }
+    var historial by remember { mutableStateOf<List<HistorialEntity>>(emptyList()) }
+    var cargando by remember { mutableStateOf(true) }
+    var errorCarga by remember { mutableStateOf(false) }
+    LaunchedEffect(AppState.usuarioId) {
+        cargando = true
+        errorCarga = false
+        solicitud = null
+        historial = emptyList()
+        try {
+            val solicitudRoom = LocalStorage.cargarUltimaSolicitudUsuario()
+            val historialRoom = LocalStorage.cargarHistorialUsuario()
+            solicitud = solicitudRoom
+            historial = historialRoom
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            errorCarga = true
+        }
+        cargando = false
+    }
     Column(modifier = Modifier.fillMaxSize().background(Fondo)) {
         Column(
             modifier = Modifier
@@ -74,12 +113,6 @@ fun HomeVecinoScreen(onNav: (String) -> Unit) {
                 LogoEcoRoute(40)
                 Spacer(Modifier.width(12.dp))
                 Text("EcoRoute", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Box(
-                    modifier = Modifier.size(42.dp).background(GrisChip, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.NotificationsNone, contentDescription = null, tint = Navy)
-                }
             }
             Spacer(Modifier.height(24.dp))
             Text("Buenos días , ${AppState.usuario.ifBlank { "usuario" }}", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -106,52 +139,59 @@ fun HomeVecinoScreen(onNav: (String) -> Unit) {
                             .width(250.dp)
                             .height(48.dp)
                             .background(VerdeBoton, RoundedCornerShape(10.dp))
+                            .semantics { role = Role.Button }
                             .clickable { onNav("registrar") },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(Modifier.width(12.dp))
                         Box(Modifier.size(24.dp).background(Superficie, CircleShape))
                         Spacer(Modifier.width(14.dp))
-                        Text("Registrar reciclaje", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Registrar reciclaje", color = SobreVerdeBoton, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
             Text("Solicitud activa", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Superficie, RoundedCornerShape(24.dp))
-                    .clickable { onNav("estado") }
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.size(52.dp).background(VerdeClaro, CircleShape),
-                    contentAlignment = Alignment.Center
+            when {
+                cargando -> Text("Cargando solicitud...", color = GrisTexto, fontSize = 14.sp)
+                errorCarga -> Text("No se pudo cargar la solicitud.", color = GrisTexto, fontSize = 14.sp)
+                solicitud == null -> Text("No tienes una solicitud activa.", color = GrisTexto, fontSize = 14.sp)
+                else -> Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Superficie, RoundedCornerShape(24.dp))
+                        .semantics { role = Role.Button }
+                        .clickable { onNav("estado") }
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.LocalDrink, contentDescription = null, tint = Color(0xFF1B7A2F))
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Plástico y papel", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    Text("2 bolsas - Hoy 3: 00 - 5: 00 p.m", color = GrisTexto, fontSize = 14.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Box(Modifier.background(VerdeClaro, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                        Text("En camino", color = VerdeBoton, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Box(
+                        modifier = Modifier.size(52.dp).background(VerdeClaro, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.LocalDrink, contentDescription = null, tint = Color(0xFF1B7A2F))
                     }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(solicitud!!.materiales, color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("${solicitud!!.bolsas} bolsas - ${solicitud!!.horario}", color = GrisTexto, fontSize = 14.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Box(Modifier.background(VerdeClaro, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                            Text(solicitud!!.estado, color = VerdeBoton, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Navy)
                 }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Navy)
             }
             Spacer(Modifier.height(24.dp))
             Text("Tu impacto", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TarjetaImpacto("8", "bolsas", Modifier.weight(1f))
-                TarjetaImpacto("14 kg", "recuperados", Modifier.weight(1f))
-                TarjetaImpacto("3", "recolecciones", Modifier.weight(1f))
+            when {
+                cargando -> Text("Cargando impacto...", color = GrisTexto, fontSize = 14.sp)
+                errorCarga -> Text("No se pudo cargar el impacto.", color = GrisTexto, fontSize = 14.sp)
+                else -> TarjetaImpacto("${historial.size}", "recolecciones", Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(20.dp))
         }
@@ -185,6 +225,10 @@ fun TarjetaMaterial(nombre: String, icono: ImageVector, seleccionado: Boolean, m
         modifier = modifier
             .height(120.dp)
             .background(if (seleccionado) VerdeClaro else Superficie, RoundedCornerShape(20.dp))
+            .semantics {
+                role = Role.Button
+                selected = seleccionado
+            }
             .clickable { onClick() }
             .padding(16.dp)
     ) {
@@ -207,11 +251,22 @@ fun TarjetaMaterial(nombre: String, icono: ImageVector, seleccionado: Boolean, m
     }
 }
 
+val rangosKgPorTamano = linkedMapOf(
+    "Pequeña" to (1 to 3),
+    "Mediana" to (4 to 6),
+    "Grande" to (7 to 10)
+)
+
 @Composable
 fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
     val seleccion = remember { mutableStateListOf(*AppState.materiales.toTypedArray()) }
     var bolsas by remember { mutableIntStateOf(AppState.bolsas) }
-    fun alternar(m: String) { if (seleccion.contains(m)) seleccion.remove(m) else seleccion.add(m) }
+    var tamano by remember { mutableStateOf(AppState.tamanoBolsa) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun alternar(m: String) {
+        if (seleccion.contains(m)) seleccion.remove(m) else seleccion.add(m)
+        error = null
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -220,7 +275,7 @@ fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
             .padding(horizontal = 20.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        BarraTitulo("Registrar reciclaje", onBack = onBack, mostrarMenu = false)
+        BarraTitulo("Registrar reciclaje", onBack = onBack)
         Spacer(Modifier.height(6.dp))
         Text("Materiales", color = Navy, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text("Paso 1 de 3 . Selecciona todo lo que aplique.", color = GrisTexto, fontSize = 15.sp)
@@ -237,6 +292,14 @@ fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
             TarjetaMaterial("Metal", Icons.Outlined.Inventory2, seleccion.contains("Metal"), Modifier.weight(1f)) { alternar("Metal") }
         }
         Spacer(Modifier.height(28.dp))
+        Text("Tamaño de bolsa", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            rangosKgPorTamano.keys.forEach { t ->
+                ChipHorario(t, tamano == t) { tamano = t }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
         Text("Volumen aproximado", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         Row(
@@ -244,17 +307,26 @@ fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(38.dp).background(GrisChip, CircleShape).clickable { if (bolsas > 1) bolsas-- },
+                modifier = Modifier.size(48.dp).background(GrisChip, CircleShape).semantics { role = Role.Button }.clickable {
+                    if (bolsas > 1) {
+                        bolsas--
+                        error = null
+                    }
+                },
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Remove, contentDescription = null, tint = Navy) }
+            ) { Icon(Icons.Filled.Remove, contentDescription = "Disminuir cantidad de bolsas", tint = Navy) }
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("$bolsas bolsas medianas", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("arox ${bolsas * 4} - ${bolsas * 6} kg", color = GrisTexto, fontSize = 13.sp)
+                val rangoKg = rangosKgPorTamano.getValue(tamano)
+                Text("$bolsas bolsas ${tamano.lowercase()}s", color = Navy, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("aprox. ${bolsas * rangoKg.first} - ${bolsas * rangoKg.second} kg", color = GrisTexto, fontSize = 13.sp)
             }
             Box(
-                modifier = Modifier.size(38.dp).background(VerdeClaro, CircleShape).clickable { bolsas++ },
+                modifier = Modifier.size(48.dp).background(VerdeClaro, CircleShape).semantics { role = Role.Button }.clickable {
+                    bolsas++
+                    error = null
+                },
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Add, contentDescription = null, tint = VerdeBoton) }
+            ) { Icon(Icons.Filled.Add, contentDescription = "Aumentar cantidad de bolsas", tint = VerdeBoton) }
         }
         Spacer(Modifier.height(20.dp))
         Row(
@@ -268,11 +340,18 @@ fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
             Spacer(Modifier.width(14.dp))
             Text("No necesitas pesar las bolsas; usa una estimación visual", color = GrisTexto, fontSize = 14.sp, lineHeight = 20.sp)
         }
+        if (error != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(error!!, color = Color(0xFFB3261E), fontSize = 14.sp, lineHeight = 20.sp)
+        }
         Spacer(Modifier.height(30.dp))
         BotonVerde("Continuar") {
+            error = validateCollection(seleccion, bolsas)
+            if (error != null) return@BotonVerde
             AppState.materiales.clear()
             AppState.materiales.addAll(seleccion)
             AppState.bolsas = bolsas
+            AppState.tamanoBolsa = tamano
             onContinuar()
         }
         Spacer(Modifier.height(30.dp))
@@ -283,18 +362,42 @@ fun RegistrarReciclajeScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
 fun ChipHorario(texto: String, seleccionado: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
+            .defaultMinSize(minHeight = 48.dp)
             .background(if (seleccionado) VerdeClaro else Superficie, RoundedCornerShape(22.dp))
+            .semantics {
+                role = Role.Button
+                selected = seleccionado
+            }
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(texto, color = if (seleccionado) VerdeBoton else Navy, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
+val diasHorario = listOf("Hoy", "Mañana", "Pasado mañana")
+val franjasHorario = listOf("8-10 a.m.", "11 a.m.-1 p.m.", "3-5 p.m.", "5-7 p.m.")
+
 @Composable
 fun DetallesRecoleccionScreen(onBack: () -> Unit, onRevisar: () -> Unit) {
-    var horario by remember { mutableStateOf(AppState.horario) }
+    val horarioInicial = AppState.horario
+    val franjaConocida = franjasHorario.any { horarioInicial.endsWith(it) }
+    var usarOtroHorario by remember { mutableStateOf(horarioInicial.isNotBlank() && !franjaConocida) }
+    var dia by remember { mutableStateOf(diasHorario.firstOrNull { horarioInicial.startsWith(it) } ?: diasHorario.first()) }
+    var franja by remember { mutableStateOf(franjasHorario.firstOrNull { horarioInicial.endsWith(it) } ?: franjasHorario.first()) }
+    var horarioOtro by remember { mutableStateOf(if (usarOtroHorario) horarioInicial else "") }
     var referencia by remember { mutableStateOf(AppState.referencia) }
+    var direccion by remember { mutableStateOf(AppState.direccion) }
+    var latitud by remember { mutableDoubleStateOf(AppState.latitudSolicitud) }
+    var longitud by remember { mutableDoubleStateOf(AppState.longitudSolicitud) }
+    var buscandoUbicacion by remember { mutableStateOf(false) }
+    var errorUbicacion by remember { mutableStateOf<String?>(null) }
+    var cancelarUbicacion by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val contexto = LocalContext.current
+    DisposableEffect(Unit) {
+        onDispose { cancelarUbicacion?.invoke() }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -303,31 +406,130 @@ fun DetallesRecoleccionScreen(onBack: () -> Unit, onRevisar: () -> Unit) {
             .padding(horizontal = 20.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        BarraTitulo("Detalles de recolección", onBack = onBack, mostrarMenu = false)
+        BarraTitulo("Detalles de recolección", onBack = onBack)
         Spacer(Modifier.height(6.dp))
         Text("¿Dónde y cuándo?", color = Navy, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text("Paso 2 de 3 . Confirma los datos de la parada.", color = GrisTexto, fontSize = 15.sp)
         Spacer(Modifier.height(14.dp))
         BarraProgreso(0.66f)
         Spacer(Modifier.height(20.dp))
-        MapaCasa()
+        MapaCasa(
+            latitud = latitud,
+            longitud = longitud,
+            expandible = true,
+            onTocarMapa = { lat, lng ->
+                latitud = lat
+                longitud = lng
+            }
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Toca el mapa para ajustar el punto exacto de recolección.", color = GrisTexto, fontSize = 12.sp)
         Spacer(Modifier.height(20.dp))
         Text("Dirección", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = direccion,
+            onValueChange = { direccion = it },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Superficie,
+                unfocusedContainerColor = Superficie,
+                focusedBorderColor = VerdeBoton,
+                unfocusedBorderColor = Color.Transparent
+            )
+        )
+        Spacer(Modifier.height(12.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(16.dp)).padding(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(VerdeClaro, RoundedCornerShape(14.dp))
+                .semantics { role = Role.Button }
+                .clickable {
+                    errorUbicacion = null
+                    buscandoUbicacion = true
+                    cancelarUbicacion = requestFreshLocation(contexto) { resultado ->
+                        buscandoUbicacion = false
+                        when (resultado) {
+                            is LocationResult.Available -> {
+                                latitud = resultado.point.latitude
+                                longitud = resultado.point.longitude
+                            }
+                            LocationResult.PermissionRequired ->
+                                errorUbicacion = "Activa el permiso de ubicación para usar tu posición actual."
+                            LocationResult.Unavailable ->
+                                errorUbicacion = "No se pudo obtener tu ubicación actual."
+                        }
+                    }
+                }
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Residencial Las Flores, pasaje 4", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Navy)
+            Icon(Icons.Filled.Place, contentDescription = null, tint = VerdeBoton)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (buscandoUbicacion) "Buscando tu ubicación..." else "Usar mi ubicación actual",
+                color = VerdeBoton,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (errorUbicacion != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(errorUbicacion!!, color = Color(0xFFB3261E), fontSize = 13.sp, lineHeight = 18.sp)
         }
         Spacer(Modifier.height(20.dp))
         Text("Horario preferido", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
+        Text("Día", color = GrisTexto, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChipHorario("Hoy 3-5 p.m.", horario == "Hoy 3-5 p.m.") { horario = "Hoy 3-5 p.m." }
-            ChipHorario("Mañana", horario == "Mañana") { horario = "Mañana" }
-            ChipHorario("Otro", horario == "Otro") { horario = "Otro" }
+            diasHorario.forEach { d ->
+                ChipHorario(d, !usarOtroHorario && dia == d) {
+                    usarOtroHorario = false
+                    dia = d
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Franja horaria", color = GrisTexto, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            franjasHorario.take(2).forEach { f ->
+                ChipHorario(f, !usarOtroHorario && franja == f) {
+                    usarOtroHorario = false
+                    franja = f
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            franjasHorario.takeLast(2).forEach { f ->
+                ChipHorario(f, !usarOtroHorario && franja == f) {
+                    usarOtroHorario = false
+                    franja = f
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        ChipHorario("Otro horario", usarOtroHorario) { usarOtroHorario = true }
+        if (usarOtroHorario) {
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = horarioOtro,
+                onValueChange = { horarioOtro = it },
+                placeholder = { Text("Ej: Sábado 9-11 a.m.") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Superficie,
+                    unfocusedContainerColor = Superficie,
+                    focusedBorderColor = VerdeBoton,
+                    unfocusedBorderColor = Color.Transparent
+                )
+            )
         }
         Spacer(Modifier.height(20.dp))
         Text("Referencia para el recolector", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -347,8 +549,11 @@ fun DetallesRecoleccionScreen(onBack: () -> Unit, onRevisar: () -> Unit) {
         )
         Spacer(Modifier.height(30.dp))
         BotonVerde("Revisar solicitud") {
-            AppState.horario = horario
+            AppState.horario = if (usarOtroHorario) horarioOtro.ifBlank { "Otro" } else "$dia $franja"
             AppState.referencia = referencia
+            AppState.direccion = direccion.ifBlank { AppState.direccion }
+            AppState.latitudSolicitud = latitud
+            AppState.longitudSolicitud = longitud
             onRevisar()
         }
         Spacer(Modifier.height(30.dp))
@@ -359,8 +564,16 @@ fun DetallesRecoleccionScreen(onBack: () -> Unit, onRevisar: () -> Unit) {
 fun FilaResumen(clave: String, valor: String) {
     Column {
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-            Text(clave, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(valor, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(clave, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                valor,
+                color = Navy,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f)
+            )
         }
         HorizontalDivider(color = Borde)
     }
@@ -368,7 +581,8 @@ fun FilaResumen(clave: String, valor: String) {
 
 @Composable
 fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
-    var autorizo by remember { mutableStateOf(AppState.autorizoUbicacion) }
+    var guardando by remember { mutableStateOf(false) }
+    var errorGuardar by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
@@ -378,7 +592,7 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
             .padding(horizontal = 20.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        BarraTitulo("Confirmar solicitud", onBack = onBack, mostrarMenu = false)
+        BarraTitulo("Confirmar solicitud", onBack = onBack)
         Spacer(Modifier.height(6.dp))
         Text("Todo listo", color = Navy, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Text("Paso 3 de 3 - Revisa antes de enviar", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -386,14 +600,22 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
         BarraProgreso(1f)
         Spacer(Modifier.height(20.dp))
         Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
-            Text("Resumen de recolecion", color = Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text("Resumen de recolección", color = Navy, fontSize = 19.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             FilaResumen("Materiales", AppState.materiales.joinToString(", "))
-            FilaResumen("Volumen", "${AppState.bolsas} bolsas medianas")
-            FilaResumen("Horario", if (AppState.horario == "Hoy 3-5 p.m.") "Hoy,2:00-5:00.p.m" else AppState.horario)
+            FilaResumen("Volumen", "${AppState.bolsas} bolsas ${AppState.tamanoBolsa.lowercase()}s")
+            FilaResumen("Horario", AppState.horario)
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-                Text("Ubicacion", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("Residensial Las Flores", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Ubicación", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    AppState.direccion,
+                    color = Navy,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -409,60 +631,53 @@ fun ConfirmarSolicitudScreen(onBack: () -> Unit, onEnviar: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Outlined.Route, contentDescription = null, tint = Navy, modifier = Modifier.size(30.dp)) }
                 Spacer(Modifier.width(16.dp))
-                Text("Tu reporte se agregara a la bitacora del recolector mas cercano", color = TextoSecundario, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.weight(1f))
+                Text("Tu solicitud se guardará en este dispositivo.", color = TextoSecundario, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.weight(1f))
             }
-        }
-        Spacer(Modifier.height(20.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Superficie, RoundedCornerShape(26.dp))
-                .clickable { autorizo = !autorizo }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp).background(if (autorizo) VerdeCheck else GrisChip, CircleShape),
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White) }
-            Spacer(Modifier.width(14.dp))
-            Text("Autorizo conpartir esta ubicacion para la parada.", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(28.dp))
-        BotonVerde("Enviar solicitud") {
-            AppState.autorizoUbicacion = autorizo
-            AppState.solicitudEnviada = true
+        BotonVerde(if (guardando) "Guardando..." else "Enviar solicitud") {
+            if (guardando) return@BotonVerde
+            guardando = true
+            errorGuardar = null
             scope.launch {
-                LocalStorage.guardarSolicitudActual()
-                onEnviar()
+                try {
+                    LocalStorage.guardarSolicitudActual()
+                    onEnviar()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    errorGuardar = "No se pudo guardar la solicitud."
+                } finally {
+                    guardando = false
+                }
             }
+        }
+        if (errorGuardar != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(errorGuardar!!, color = Color(0xFFB3261E), fontSize = 14.sp)
         }
         Spacer(Modifier.height(30.dp))
     }
 }
 
 @Composable
-fun PasoSeguimiento(titulo: String, hora: String, completado: Boolean, ultimo: Boolean = false) {
-    Row {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier.size(38.dp).background(if (completado) VerdeCheck else Color(0xFFD4D6DA), CircleShape),
-                contentAlignment = Alignment.Center
-            ) { if (completado) Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp)) }
-            if (!ultimo) Box(Modifier.width(5.dp).height(58.dp).background(if (completado) VerdeBoton else Color(0xFFD4D6DA)))
-        }
-        Spacer(Modifier.width(18.dp))
-        Column {
-            Text(titulo, color = TextoPrincipal, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Text(hora, color = GrisTexto, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
 fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
-    val materiales = AppState.materiales.joinToString(", ").ifBlank { "Material registrado" }
-    val volumen = "${AppState.bolsas} bolsas"
+    var solicitudes by remember { mutableStateOf<List<SolicitudEntity>>(emptyList()) }
+    var cargando by remember { mutableStateOf(true) }
+    var errorCarga by remember { mutableStateOf(false) }
+    LaunchedEffect(AppState.usuarioId) {
+        cargando = true
+        errorCarga = false
+        solicitudes = emptyList()
+        try {
+            solicitudes = LocalStorage.cargarSolicitudesActivasUsuario()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            errorCarga = true
+        }
+        cargando = false
+    }
     Column(modifier = Modifier.fillMaxSize().background(Fondo)) {
         Column(
             modifier = Modifier
@@ -473,58 +688,41 @@ fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
             Spacer(Modifier.height(10.dp))
             BarraTitulo("Estado de solicitud", onBack = onBack)
             Spacer(Modifier.height(6.dp))
-            Column(modifier = Modifier.fillMaxWidth().background(VerdeClaro, RoundedCornerShape(20.dp)).padding(20.dp)) {
-                Text("EN CAMINO", color = VerdeBoton, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Llegada estimada: 18min", color = TextoPrincipal, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier.size(56.dp).background(Superficie, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Outlined.Route, contentDescription = null, tint = Navy, modifier = Modifier.size(26.dp)) }
-                }
-            }
-            Spacer(Modifier.height(26.dp))
-            Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
-                Text("Solicitud actual", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(10.dp))
-                FilaResumen("Materiales", materiales)
-                FilaResumen("Volumen", volumen)
-                FilaResumen("Horario", AppState.horario)
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
-                    Text("Referencia", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(AppState.referencia.take(24), color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(Modifier.height(26.dp))
-            Text("Seguimiento", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(18.dp))
-            PasoSeguimiento("Reportado", "2:18.p.m", true)
-            PasoSeguimiento("Recolector asignado", "2:18.p.m", true)
-            PasoSeguimiento("En camino", "2:18.p.m", true)
-            PasoSeguimiento("Recolectado", "2:18.p.m", false, ultimo = true)
-            Spacer(Modifier.height(30.dp))
-            Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(64.dp).background(Color(0xFF7C9C4A), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) { Text("MR", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text("Marcos R.", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text("Recolector local -4.9", color = GrisTexto, fontSize = 14.sp)
+            when {
+                cargando -> Text("Cargando solicitud...", color = GrisTexto, fontSize = 14.sp)
+                errorCarga -> Text("No se pudo cargar la solicitud.", color = GrisTexto, fontSize = 14.sp)
+                solicitudes.isEmpty() -> Text("No hay una solicitud activa.", color = GrisTexto, fontSize = 14.sp)
+                else -> {
+                    solicitudes.forEachIndexed { indice, solicitudActual ->
+                        val completada = solicitudActual.estado == "Completado"
+                        Column(modifier = Modifier.fillMaxWidth().background(VerdeClaro, RoundedCornerShape(20.dp)).padding(20.dp)) {
+                            Text(solicitudActual.estado, color = VerdeBoton, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(18.dp))
+                            PasoSeguimiento("Solicitud enviada", completado = true, esUltimo = false)
+                            PasoSeguimiento(if (completada) "Recolectada" else "En camino", completado = completada, esUltimo = true)
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Column(modifier = Modifier.fillMaxWidth().background(Superficie, RoundedCornerShape(20.dp)).padding(18.dp)) {
+                            Text("Solicitud actual", color = TextoPrincipal, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(10.dp))
+                            FilaResumen("Materiales", solicitudActual.materiales)
+                            FilaResumen("Volumen", "${solicitudActual.bolsas} bolsas")
+                            FilaResumen("Horario", solicitudActual.horario)
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
+                                Text("Referencia", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    solicitudActual.referencia,
+                                    color = Navy,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        if (indice != solicitudes.lastIndex) Spacer(Modifier.height(26.dp))
                     }
-                }
-                Spacer(Modifier.height(14.dp))
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .background(Superficie, RoundedCornerShape(22.dp))
-                        .clickable { }
-                        .padding(horizontal = 34.dp, vertical = 12.dp)
-                ) {
-                    Text("Enviar mensaje", color = VerdeBoton, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -533,20 +731,51 @@ fun EstadoSolicitudScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
     }
 }
 
+@Composable
+fun PasoSeguimiento(texto: String, completado: Boolean, esUltimo: Boolean) {
+    Row(verticalAlignment = Alignment.Top) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier.size(22.dp).background(if (completado) VerdeBoton else GrisChip, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (completado) Icon(Icons.Filled.Check, contentDescription = null, tint = SobreVerdeBoton, modifier = Modifier.size(14.dp))
+            }
+            if (!esUltimo) {
+                Box(modifier = Modifier.width(2.dp).height(28.dp).background(if (completado) VerdeBoton else GrisChip))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(texto, color = Navy, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
 data class Recoleccion(val fecha: String, val material: String, val bolsas: String, val estado: String, val icono: ImageVector)
 
 @Composable
 fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
-    var filtro by remember { mutableStateOf("Todos") }
+    var filtro by remember { mutableStateOf("Todas") }
     var historialRoom by remember { mutableStateOf<List<HistorialEntity>>(emptyList()) }
+    var cargando by remember { mutableStateOf(true) }
+    var errorCarga by remember { mutableStateOf(false) }
     LaunchedEffect(AppState.usuarioId) {
-        historialRoom = LocalStorage.cargarHistorialUsuario()
+        cargando = true
+        errorCarga = false
+        historialRoom = emptyList()
+        try {
+            historialRoom = LocalStorage.cargarHistorialUsuario()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            errorCarga = true
+        }
+        cargando = false
     }
     val items = historialRoom.map {
         Recoleccion(it.fecha, it.material, it.bolsas, it.estado, Icons.Outlined.LocalDrink)
     }
     val visibles = when (filtro) {
-        "Completados" -> items.filter { it.estado == "Completado" }
+        "Completadas" -> items.filter { it.estado == "Completado" }
         "Pendientes" -> items.filter { it.estado != "Completado" }
         else -> items
     }
@@ -558,24 +787,40 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(10.dp))
-            BarraTitulo("Historial", onBack = onBack)
+            BarraTitulo("Historial")
             Spacer(Modifier.height(6.dp))
             Text("Tus recolecciones", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf("Todos", "Completados", "Pendientes").forEach { f ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf("Todas", "Completadas", "Pendientes").forEach { f ->
                     Box(
                         modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
                             .background(if (filtro == f) VerdeClaro else Superficie, RoundedCornerShape(20.dp))
+                            .semantics {
+                                role = Role.Button
+                                selected = filtro == f
+                            }
                             .clickable { filtro = f }
-                            .padding(horizontal = 18.dp, vertical = 10.dp)
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(f, color = if (filtro == f) Color(0xFF7BA07F) else TextoPrincipal, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(f, color = TextoPrincipal, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             Spacer(Modifier.height(20.dp))
-            if (visibles.isEmpty()) {
+            if (cargando) {
+                Text("Cargando historial...", color = GrisTexto, fontSize = 14.sp)
+            } else if (errorCarga) {
+                Text("No se pudo cargar el historial.", color = GrisTexto, fontSize = 14.sp)
+            } else if (visibles.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -590,7 +835,7 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                     Text("Cuando registres una solicitud o completes una recolección, aparecerá aquí.", color = GrisTexto, fontSize = 14.sp, lineHeight = 20.sp)
                 }
             }
-            visibles.forEach { r ->
+            if (!cargando && !errorCarga) visibles.forEach { r ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -613,7 +858,7 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                             .background(if (r.estado == "En camino") VerdeClaro else Superficie, RoundedCornerShape(18.dp))
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text(r.estado, color = if (r.estado == "En camino") Color(0xFF7BA07F) else TextoPrincipal, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(r.estado, color = TextoPrincipal, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = GrisTexto)
@@ -621,7 +866,49 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
                 Spacer(Modifier.height(16.dp))
             }
         }
-        BarraInferior(tabsVecino, "historial", onNav)
+        BarraInferior(if (AppState.rol == "vecino") tabsVecino else tabsRecolector, "historial", onNav)
+    }
+}
+
+@Composable
+private fun FilaPreferencia(
+    icono: ImageVector,
+    titulo: String,
+    subtitulo: String,
+    modifier: Modifier = Modifier,
+    trailing: @Composable () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Superficie, RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(44.dp).background(GrisChip, CircleShape),
+            contentAlignment = Alignment.Center
+        ) { Icon(icono, contentDescription = null, tint = Navy) }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(titulo, color = Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(subtitulo, color = GrisTexto, fontSize = 13.sp)
+        }
+        trailing()
+    }
+}
+
+/**
+ * A diferencia de "Ahorro de batería" (que sí cambia el muestreo de sensores), esta app
+ * no tiene backend ni canal propio de push: solo puede reflejar y abrir el permiso de
+ * notificaciones real del sistema, no simular envíos que nunca ocurren.
+ */
+private fun abrirAjustesNotificaciones(contexto: android.content.Context) {
+    if (Build.VERSION.SDK_INT >= 26) {
+        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, contexto.packageName)
+        }
+        runCatching { contexto.startActivity(intent) }
     }
 }
 
@@ -629,9 +916,17 @@ fun HistorialScreen(onBack: () -> Unit, onNav: (String) -> Unit) {
 fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
     val tabs = if (AppState.rol == "vecino") tabsVecino else tabsRecolector
     val scope = rememberCoroutineScope()
+    val contexto = LocalContext.current
+    val notificacionesActivas = remember {
+        (contexto.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as? NotificationManager)
+            ?.areNotificationsEnabled() ?: true
+    }
     Column(modifier = Modifier.fillMaxSize().background(Fondo)) {
         Column(
-            modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(10.dp))
@@ -643,33 +938,40 @@ fun PerfilScreen(onNav: (String) -> Unit, onCerrarSesion: () -> Unit) {
             ) { Icon(Icons.Outlined.Person, contentDescription = null, tint = Navy, modifier = Modifier.size(60.dp)) }
             Spacer(Modifier.height(16.dp))
             Text(AppState.usuario.ifBlank { "Usuario" }, color = Navy, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text(if (AppState.rol == "vecino") "Vecino" else "Recolector local -4.9", color = GrisTexto, fontSize = 15.sp)
+            Text(if (AppState.rol == "vecino") "Vecino" else "Recolector local", color = GrisTexto, fontSize = 15.sp)
             Spacer(Modifier.height(30.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Superficie, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.size(44.dp).background(GrisChip, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = Navy)
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Modo oscuro", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text("Usar colores oscuros en toda la app", color = GrisTexto, fontSize = 13.sp)
-                }
+            Text("Preferencias", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            FilaPreferencia(Icons.Outlined.DarkMode, "Modo oscuro", "Usar colores oscuros en toda la app") {
                 Switch(
+                    modifier = Modifier.semantics { contentDescription = "Modo oscuro" },
                     checked = AppState.modoOscuro,
-                    onCheckedChange = { activo ->
-                        scope.launch { LocalStorage.guardarModoOscuro(activo) }
-                    }
+                    onCheckedChange = { activo -> scope.launch { LocalStorage.guardarModoOscuro(activo) } }
                 )
             }
+            Spacer(Modifier.height(14.dp))
+            if (AppState.rol == "recolector") {
+                FilaPreferencia(Icons.Outlined.BatterySaver, "Ahorro de batería", "Reduce la frecuencia de los sensores de la brújula") {
+                    Switch(
+                        modifier = Modifier.semantics { contentDescription = "Ahorro de batería" },
+                        checked = AppState.ahorroBateria,
+                        onCheckedChange = { activo -> scope.launch { LocalStorage.guardarAhorroBateria(activo) } }
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+            FilaPreferencia(
+                Icons.Outlined.NotificationsNone,
+                "Notificaciones",
+                if (notificacionesActivas) "Activadas en este dispositivo" else "Desactivadas: toca para habilitarlas",
+                modifier = Modifier
+                    .semantics { role = Role.Button }
+                    .clickable { abrirAjustesNotificaciones(contexto) }
+            ) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = GrisTexto)
+            }
+            Spacer(Modifier.height(14.dp))
+            FilaPreferencia(Icons.Outlined.Storage, "Datos y almacenamiento", "Solo local: tus datos no salen de este dispositivo") {}
             Spacer(Modifier.height(24.dp))
             BotonVerde("Cerrar sesión") { onCerrarSesion() }
         }

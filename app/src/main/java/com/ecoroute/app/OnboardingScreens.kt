@@ -37,6 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,6 +48,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+
+fun hasLocationPermission(fineGranted: Boolean, coarseGranted: Boolean) = fineGranted || coarseGranted
 
 @Composable
 fun LogoEcoRoute(tamano: Int = 44) {
@@ -63,39 +69,48 @@ fun LogoEcoRoute(tamano: Int = 44) {
 
 @Composable
 fun BienvenidaScreen(onLogin: () -> Unit, onCrearCuenta: () -> Unit) {
-    Column(
+    val scroll = rememberScrollState()
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Fondo)
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(70.dp))
-        LogoEcoRoute(86)
-        Spacer(Modifier.height(18.dp))
-        Text("EcoRoute", color = Navy, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Conecta vecinos y recolectores para recuperar materiales de forma ordenada.",
-            color = GrisTexto,
-            fontSize = 16.sp,
-            lineHeight = 24.sp
-        )
-        Spacer(Modifier.height(56.dp))
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(260.dp)
-                .background(VerdeClaro, RoundedCornerShape(34.dp)),
-            contentAlignment = Alignment.Center
+                .verticalScroll(scroll)
+                .heightIn(min = maxHeight)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Outlined.Recycling, contentDescription = null, tint = VerdeBoton, modifier = Modifier.size(150.dp))
+            Spacer(Modifier.height(70.dp))
+            LogoEcoRoute(86)
+            Spacer(Modifier.height(18.dp))
+            Text("EcoRoute", color = Navy, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Conecta vecinos y recolectores para recuperar materiales de forma ordenada.",
+                color = GrisTexto,
+                fontSize = 16.sp,
+                lineHeight = 24.sp
+            )
+            Spacer(Modifier.height(56.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .background(VerdeClaro, RoundedCornerShape(34.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Recycling, contentDescription = null, tint = VerdeBoton, modifier = Modifier.size(150.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
+            BotonVerde("Iniciar sesión") { onLogin() }
+            Spacer(Modifier.height(14.dp))
+            BotonBlanco("Crear cuenta") { onCrearCuenta() }
+            Spacer(Modifier.height(34.dp))
         }
-        Spacer(Modifier.weight(1f))
-        BotonVerde("Iniciar sesión") { onLogin() }
-        Spacer(Modifier.height(14.dp))
-        BotonBlanco("Crear cuenta") { onCrearCuenta() }
-        Spacer(Modifier.height(34.dp))
     }
 }
 
@@ -156,7 +171,7 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit, onRecuperar: ()
         Spacer(Modifier.height(24.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
             LogoEcoRoute(56)
@@ -167,15 +182,11 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit, onRecuperar: ()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(320.dp),
+                .height(200.dp)
+                .background(VerdeClaro, RoundedCornerShape(34.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .background(Color(0xFF8FB4E8), CircleShape)
-            )
-            Icon(Icons.Outlined.Recycling, contentDescription = null, tint = Color(0xFF1B7A2F), modifier = Modifier.size(150.dp))
+            Icon(Icons.Outlined.Recycling, contentDescription = null, tint = VerdeBoton, modifier = Modifier.size(110.dp))
         }
         Spacer(Modifier.height(16.dp))
         Text("Tu usuario", color = Navy, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -196,6 +207,7 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit, onRecuperar: ()
                     .width(280.dp)
                     .height(56.dp)
                     .background(VerdeBoton, RoundedCornerShape(10.dp))
+                    .semantics { role = Role.Button }
                     .clickable {
                         if (usuario.isBlank() || contrasena.isBlank()) {
                             error = "Escribe tu usuario y contraseña."
@@ -213,27 +225,36 @@ fun LoginScreen(onEntrar: () -> Unit, onCrearCuenta: () -> Unit, onRecuperar: ()
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text("Iniciar sesión", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                Text("Iniciar sesión", color = SobreVerdeBoton, fontSize = 17.sp, fontWeight = FontWeight.Medium)
             }
         }
         Spacer(Modifier.height(20.dp))
-        Text(
-            "¿Olvidaste tu contraseña?",
-            color = VerdeBoton,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.CenterHorizontally).clickable { onRecuperar() }
-        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .defaultMinSize(minHeight = 48.dp)
+                .semantics { role = Role.Button }
+                .clickable { onRecuperar() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("¿Olvidaste tu contraseña?", color = VerdeBoton, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
         Spacer(Modifier.height(20.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text("¿Aún no tienes cuenta? ", color = GrisTexto, fontSize = 15.sp)
-            Text(
-                "Regístrate",
-                color = VerdeBoton,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onCrearCuenta() }
-            )
+            Box(
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 48.dp)
+                    .semantics { role = Role.Button }
+                    .clickable { onCrearCuenta() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Regístrate", color = VerdeBoton, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
         }
         Spacer(Modifier.height(40.dp))
     }
@@ -250,18 +271,18 @@ fun RecuperarContrasenaScreen(onBack: () -> Unit) {
             .padding(horizontal = 24.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        BarraTitulo("Recuperar contraseña", onBack = onBack, mostrarMenu = false)
+        BarraTitulo("Recuperar contraseña", onBack = onBack)
         Spacer(Modifier.height(30.dp))
         Text("Restablece tu acceso", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text("Para este prototipo se simula el envío de instrucciones al usuario local.", color = GrisTexto, fontSize = 15.sp, lineHeight = 22.sp)
+        Text("Esta pantalla es una simulación: no se envía ningún mensaje real.", color = GrisTexto, fontSize = 15.sp, lineHeight = 22.sp)
         Spacer(Modifier.height(28.dp))
         Text("Usuario", color = Navy, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         CampoTexto(usuario, "Ingrese su usuario") { usuario = it; enviado = false }
         if (enviado) {
             Spacer(Modifier.height(14.dp))
-            Text("Si el usuario existe, se mostrarían instrucciones de recuperación.", color = VerdeBoton, fontSize = 14.sp)
+            Text("Simulado. En una app real acá llegarían los pasos para recuperar el acceso.", color = VerdeBoton, fontSize = 14.sp)
         }
         Spacer(Modifier.height(28.dp))
         BotonVerde("Enviar instrucciones") { enviado = usuario.isNotBlank() }
@@ -285,7 +306,7 @@ fun RegistroScreen(onBack: () -> Unit, onRegistrado: () -> Unit) {
             .padding(horizontal = 24.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        BarraTitulo("Crear cuenta", onBack = onBack, mostrarMenu = false)
+        BarraTitulo("Crear cuenta", onBack = onBack)
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             LogoEcoRoute(54)
@@ -349,6 +370,10 @@ fun TarjetaRol(titulo: String, descripcion: String, icono: ImageVector, colorIco
         modifier = Modifier
             .fillMaxWidth()
             .background(if (seleccionado) VerdeSuave else Superficie, RoundedCornerShape(24.dp))
+            .semantics {
+                role = Role.Button
+                selected = seleccionado
+            }
             .clickable { onClick() }
             .padding(20.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -375,47 +400,56 @@ fun TarjetaRol(titulo: String, descripcion: String, icono: ImageVector, colorIco
 fun ConfiguraExperienciaScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
     var rol by remember { mutableStateOf(AppState.rol) }
     val scope = rememberCoroutineScope()
-    Column(
+    val scroll = rememberScrollState()
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Fondo)
-            .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(10.dp))
-        BarraTitulo("Configura tu experiencia", onBack = onBack, mostrarMenu = false)
-        Spacer(Modifier.height(10.dp))
-        Text("¿Cómo usarás EcoRoute?", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Puedes cambiar esta opción más adelante desde tu perfil", color = GrisTexto, fontSize = 15.sp, lineHeight = 22.sp)
-        Spacer(Modifier.height(32.dp))
-        TarjetaRol(
-            "Soy vecino",
-            "Registrar bolsas, programar recolecciones y consultar el estado",
-            Icons.Outlined.Home, Color(0xFF1B7A2F), VerdeClaro,
-            rol == "vecino"
-        ) { rol = "vecino" }
-        Spacer(Modifier.height(20.dp))
-        TarjetaRol(
-            "Soy recolector",
-            "Organizar paradas, navegar con brújula y completar la bitácora.",
-            Icons.Outlined.Route, Color(0xFF8A8A1E), Amarillo,
-            rol == "recolector"
-        ) { rol = "recolector" }
-        Spacer(Modifier.weight(1f))
-        Text("Diseñador para funcionar con pocos datos y bajo consumo...", color = GrisTexto, fontSize = 14.sp)
-        Spacer(Modifier.height(16.dp))
-        BotonVerde("Continuar") {
-            scope.launch {
-                LocalStorage.guardarRolUsuario(rol)
-                onContinuar()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .heightIn(min = maxHeight)
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(Modifier.height(10.dp))
+            BarraTitulo("Configura tu experiencia", onBack = onBack)
+            Spacer(Modifier.height(10.dp))
+            Text("¿Cómo usarás EcoRoute?", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Elige el rol que usarás en EcoRoute para continuar con tu registro", color = GrisTexto, fontSize = 15.sp, lineHeight = 22.sp)
+            Spacer(Modifier.height(32.dp))
+            TarjetaRol(
+                "Soy vecino",
+                "Registrar bolsas, programar recolecciones y consultar el estado",
+                Icons.Outlined.Home, Color(0xFF1B7A2F), VerdeClaro,
+                rol == "vecino"
+            ) { rol = "vecino" }
+            Spacer(Modifier.height(20.dp))
+            TarjetaRol(
+                "Soy recolector",
+                "Organizar paradas, navegar con brújula y completar la bitácora.",
+                Icons.Outlined.Route, Color(0xFF8A8A1E), Amarillo,
+                rol == "recolector"
+            ) { rol = "recolector" }
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
+            Text("Diseñado para funcionar con pocos datos y bajo consumo...", color = GrisTexto, fontSize = 14.sp)
+            Spacer(Modifier.height(16.dp))
+            BotonVerde("Continuar") {
+                scope.launch {
+                    LocalStorage.guardarRolUsuario(rol)
+                    onContinuar()
+                }
             }
+            Spacer(Modifier.height(30.dp))
         }
-        Spacer(Modifier.height(30.dp))
     }
 }
 
 @Composable
-fun TarjetaPermiso(titulo: String, descripcion: String, icono: ImageVector) {
+fun TarjetaPermiso(titulo: String, descripcion: String, icono: ImageVector, concedido: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -437,53 +471,83 @@ fun TarjetaPermiso(titulo: String, descripcion: String, icono: ImageVector) {
             Spacer(Modifier.height(4.dp))
             Text(descripcion, color = GrisTexto, fontSize = 14.sp, lineHeight = 20.sp)
         }
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .background(VerdeBoton, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        if (concedido) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(VerdeBoton, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = SobreVerdeBoton, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
 
 @Composable
 fun PermisosScreen(onBack: () -> Unit, onContinuar: () -> Unit) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        onContinuar()
+    var locationGranted by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        locationGranted = hasLocationPermission(
+            fineGranted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true,
+            coarseGranted = result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        )
+        if (locationGranted == true) onContinuar()
     }
-    Column(
+    val scroll = rememberScrollState()
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Fondo)
-            .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(10.dp))
-        BarraTitulo("Permisos necesarios", onBack = onBack, mostrarMenu = false)
-        Spacer(Modifier.height(6.dp))
-        Text("Prepara EcoRoute", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Estos permisos hacen posible la ruta y la navegación directa.", color = GrisTexto, fontSize = 15.sp, lineHeight = 24.sp)
-        Spacer(Modifier.height(28.dp))
-        TarjetaPermiso("Ubicación", "Para ubicar paradas y calcular la distancia", Icons.Outlined.Place)
-        Spacer(Modifier.height(20.dp))
-        TarjetaPermiso("Sensores de movimiento", "Para orientar la brújula hacia la parada", Icons.Outlined.RadioButtonChecked)
-        Spacer(Modifier.height(20.dp))
-        TarjetaPermiso("Notificaciones", "Para avisarte cambios de estado", Icons.Outlined.NotificationsNone)
-        Spacer(Modifier.weight(1f))
-        BotonVerde("Permitir y continuar") {
-            val permisos = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
-            if (Build.VERSION.SDK_INT >= 33) permisos.add(Manifest.permission.POST_NOTIFICATIONS)
-            launcher.launch(permisos.toTypedArray())
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scroll)
+                .heightIn(min = maxHeight)
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(Modifier.height(10.dp))
+            BarraTitulo("Permisos necesarios", onBack = onBack)
+            Spacer(Modifier.height(6.dp))
+            Text("Prepara EcoRoute", color = Navy, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Estos permisos hacen posible la ruta y la navegación directa.", color = GrisTexto, fontSize = 15.sp, lineHeight = 24.sp)
+            Spacer(Modifier.height(28.dp))
+            TarjetaPermiso("Ubicación", "Para ubicar paradas y calcular la distancia", Icons.Outlined.Place, locationGranted == true)
+            Spacer(Modifier.height(20.dp))
+            TarjetaPermiso("Sensores de movimiento", "Para orientar la brújula hacia la parada", Icons.Outlined.RadioButtonChecked)
+            Spacer(Modifier.height(20.dp))
+            TarjetaPermiso("Notificaciones", "Para avisarte cambios de estado", Icons.Outlined.NotificationsNone)
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
+            if (locationGranted == false) {
+                Text(
+                    "No se concedió el permiso de ubicación. Puedes continuar sin navegación por brújula.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(Modifier.height(14.dp))
+                BotonVerde("Continuar", onClick = onContinuar)
+            } else {
+                BotonVerde("Permitir y continuar") {
+                    val permisos = mutableListOf(
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    )
+                    if (Build.VERSION.SDK_INT >= 33) permisos.add(Manifest.permission.POST_NOTIFICATIONS)
+                    launcher.launch(permisos.toTypedArray())
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Puedes ajustar permisos desde Android",
+                color = GrisTexto,
+                fontSize = 14.sp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            Spacer(Modifier.height(30.dp))
         }
-        Spacer(Modifier.height(14.dp))
-        Text(
-            "Puedes ajustar permisos desde Android",
-            color = GrisTexto,
-            fontSize = 14.sp,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-        Spacer(Modifier.height(30.dp))
     }
 }

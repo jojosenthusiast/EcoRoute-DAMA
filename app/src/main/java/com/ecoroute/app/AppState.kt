@@ -1,6 +1,7 @@
 package com.ecoroute.app
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,20 @@ class Parada(
     val longitud: Double
 ) {
     var recolectada by mutableStateOf(false)
+    var solicitudId: Long? = null
+}
+
+data class RouteSummary(val total: Int, val pending: Int, val completed: Int)
+
+fun routeSummary(stops: List<Parada>): RouteSummary {
+    val completed = stops.count { it.recolectada }
+    return RouteSummary(stops.size, stops.size - completed, completed)
+}
+
+fun validateCollection(materials: List<String>, bags: Int): String? = when {
+    materials.isEmpty() -> "Selecciona al menos un material."
+    bags < 1 -> "Agrega al menos una bolsa."
+    else -> null
 }
 
 object AppState {
@@ -26,15 +41,19 @@ object AppState {
     var usuario by mutableStateOf("")
     var usuarioId by mutableStateOf("")
     var modoOscuro by mutableStateOf(false)
+    var ahorroBateria by mutableStateOf(false)
 
     const val LATITUD_CASA = 13.9946
     const val LONGITUD_CASA = -89.5597
 
     val materiales = mutableStateListOf("Plástico", "Papel")
     var bolsas by mutableIntStateOf(2)
+    var tamanoBolsa by mutableStateOf("Mediana")
     var horario by mutableStateOf("Hoy 3-5 p.m.")
     var referencia by mutableStateOf("Portón verde, dejar las bolsas junto al árbol.")
-    var autorizoUbicacion by mutableStateOf(true)
+    var direccion by mutableStateOf("Residencial Las Flores, pasaje 4")
+    var latitudSolicitud by mutableDoubleStateOf(LATITUD_CASA)
+    var longitudSolicitud by mutableDoubleStateOf(LONGITUD_CASA)
     var solicitudEnviada by mutableStateOf(true)
 
     var paradaActual by mutableIntStateOf(0)

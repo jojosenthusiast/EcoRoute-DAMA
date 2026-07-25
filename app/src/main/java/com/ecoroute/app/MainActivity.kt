@@ -11,6 +11,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         LocalStorage.inicializar(applicationContext)
         lifecycleScope.launch { LocalStorage.cargarDatosIniciales() }
@@ -87,12 +89,6 @@ fun AppNav() {
                 onRegistrado = { nav.navigate("permisos") { popUpTo("bienvenida") } }
             )
         }
-        composable("rol") {
-            ConfiguraExperienciaScreen(
-                onBack = { nav.popBackStack() },
-                onContinuar = { nav.navigate("permisos") }
-            )
-        }
         composable("permisos") {
             PermisosScreen(
                 onBack = { nav.popBackStack() },
@@ -150,17 +146,7 @@ fun AppNav() {
         composable("recoHome") {
             RutaDeHoyScreen(
                 onNav = ::irTab,
-                onIniciar = {
-                    scope.launch {
-                        LocalStorage.reiniciarRuta()
-                        nav.navigate("paradas")
-                    }
-                },
-                onCerrar = {
-                    AppState.usuario = ""
-                    AppState.usuarioId = ""
-                    nav.navigate("login") { popUpTo(0) { inclusive = true } }
-                }
+                onIniciar = { nav.navigate("paradas") }
             )
         }
         composable("paradas") {
