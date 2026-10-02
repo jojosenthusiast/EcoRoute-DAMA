@@ -26,6 +26,8 @@ jobs:
           rm -rf dlc_build/lib
           cp -R apk_source/lib dlc_build/lib
           cp apk_source/pubspec.yaml dlc_build/pubspec.yaml
+          rm -rf dlc_build/test
+          rm -f dlc_build/analysis_options.yaml
 
       - name: Install dependencies
         working-directory: dlc_build
