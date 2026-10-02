@@ -75,3 +75,8 @@ class Station {
     return FuelStatus.optimal;
   }
 }
+
+
+extension FirstOrNullExtension<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
