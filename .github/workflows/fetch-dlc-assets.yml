@@ -21,6 +21,9 @@ jobs:
           curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/3599/WhatsApp%20Image%202023-08-22%20at%204.24.40%20PM.jpeg" -o dlc_assets/DLCStationSonsonate.jpg
           curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/755/logo.png" -o dlc_assets/DLCOfficialLogo.png
 
+      - name: Install image tooling
+        run: python -m pip install --quiet pillow
+
       - name: Build station-photo app icon
         run: |
           python - <<'PY'
