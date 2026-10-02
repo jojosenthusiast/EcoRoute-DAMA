@@ -1,0 +1,40 @@
+name: Fetch official DLC station assets
+
+on:
+  push:
+    branches: [ dlc-swift-build ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download official DLC images
+        run: |
+          mkdir -p dlc_assets
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/7743/DLC%20RAMBLAS%20%20%281%29.JPG" -o dlc_assets/DLCStationSantaAna.jpg
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/2628/DLC%20Masferrer.jpg" -o dlc_assets/DLCStationSanSalvador.jpg
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/2544/San%20Andr%C3%A9s.jpeg" -o dlc_assets/DLCStationSanMiguel.jpg
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/3599/WhatsApp%20Image%202023-08-22%20at%204.24.40%20PM.jpeg" -o dlc_assets/DLCStationSonsonate.jpg
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://www.dlc.com.sv/web/image/755/logo.png" -o dlc_assets/DLCOfficialLogo.png
+
+      - name: Build station-photo app icon
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageOps, ImageEnhance
+          img = Image.open("dlc_assets/DLCStationSanSalvador.jpg").convert("RGB")
+          icon = ImageOps.fit(img, (1024,1024), method=Image.Resampling.LANCZOS)
+          icon = ImageEnhance.Contrast(icon).enhance(1.05)
+          icon.save("dlc_assets/DLCAppIcon.png", quality=95)
+          PY
+
+      - name: Upload official DLC assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: DLC-Official-Station-Assets
+          path: dlc_assets/*
+          if-no-files-found: error
+          retention-days: 7
