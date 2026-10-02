@@ -48,3 +48,15 @@ jobs:
           path: dlc_build/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Upload full Flutter project
+        uses: actions/upload-artifact@v4
+        with:
+          name: DLC-El-Salvador-Flutter-Project
+          path: |
+            dlc_build/**
+            !dlc_build/build/**
+            !dlc_build/.dart_tool/**
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
