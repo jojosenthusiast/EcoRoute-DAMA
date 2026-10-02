@@ -160,18 +160,47 @@ class BranchesScreen extends StatelessWidget{
   const BranchesScreen({super.key});
   @override Widget build(BuildContext context){
     final vm=AppScope.of(context);
-    return Column(children:[pageHeader('Sucursales',subtitle:'Gerente General'),titleBlock('Sucursales','Estado actual de la red'),Expanded(child:ListView.separated(padding:const EdgeInsets.fromLTRB(20,0,20,100),itemCount:vm.stations.length,separatorBuilder:(_,__)=>const SizedBox(height:10),itemBuilder:(_,i){
-      final s=vm.stations[i];return Card(child:ListTile(contentPadding:const EdgeInsets.all(14),leading:const CircleAvatar(backgroundColor:Color(0xFFFFEEE4),child:Icon(Icons.local_gas_station,color:orange)),title:Text(s.name,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(s.code+' · '+s.department),trailing:StatusBadge(s.overallStatus),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StationDetailScreen(s))));
-    }))]);
+    return Column(children:[
+      pageHeader('Sucursales',subtitle:'Gerente General'),
+      titleBlock('Sucursales','Estado actual de la red'),
+      Expanded(child:ListView.separated(
+        padding:const EdgeInsets.fromLTRB(20,0,20,100),
+        itemCount:vm.stations.length,
+        separatorBuilder:(_,__)=>const SizedBox(height:10),
+        itemBuilder:(_,i){
+          final station=vm.stations[i];
+          return Card(child:ListTile(
+            contentPadding:const EdgeInsets.all(14),
+            leading:const CircleAvatar(backgroundColor:Color(0xFFFFEEE4),child:Icon(Icons.local_gas_station,color:orange)),
+            title:Text(station.name,style:const TextStyle(fontWeight:FontWeight.w800)),
+            subtitle:Text(station.code+' · '+station.department),
+            trailing:StatusBadge(station.overallStatus),
+            onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StationDetailScreen(station))),
+          ));
+        },
+      )),
+    ]);
   }
 }
 class StationDetailScreen extends StatelessWidget{
   const StationDetailScreen(this.station,{super.key});final Station station;
-  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(station.name)),body:ListView(padding:const EdgeInsets.all(20),children:[
-    Text(station.code+' · '+station.department,style:const TextStyle(color:Color(0xFF666666))),const SizedBox(height:12),
-    Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Tanques',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),...FuelType.values.map((f)=>TankTile(station.tanks[f]!))]))),
-    const SizedBox(height:14),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Ventas · 7 días',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:12),BarChart(station.last7DaysSales)]))),
-  ]);
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(station.name)),
+    body:ListView(padding:const EdgeInsets.all(20),children:[
+      Text(station.code+' · '+station.department,style:const TextStyle(color:Color(0xFF666666))),
+      const SizedBox(height:12),
+      Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('Tanques',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
+        ...FuelType.values.map((f)=>TankTile(station.tanks[f]!)),
+      ]))),
+      const SizedBox(height:14),
+      Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('Ventas · 7 días',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),
+        const SizedBox(height:12),
+        BarChart(station.last7DaysSales),
+      ]))),
+    ]),
+  );
 }
 
 class AdminScreen extends StatelessWidget{
@@ -278,15 +307,62 @@ class PumpGrid extends StatelessWidget{
     ]);
   }
 }
-class PumpEntryScreen extends StatefulWidget{const PumpEntryScreen(this.cut,this.pump,{super.key});final DailyCut cut;final PumpRecord pump;@override State<PumpEntryScreen> createState()=>_PumpEntryState();}
+class PumpEntryScreen extends StatefulWidget{
+  const PumpEntryScreen(this.cut,this.pump,{super.key});
+  final DailyCut cut;
+  final PumpRecord pump;
+  @override State<PumpEntryScreen> createState()=>_PumpEntryState();
+}
 class _PumpEntryState extends State<PumpEntryScreen>{
-  late final Map<FuelType,TextEditingController> initial,finalC;
-  @override void initState(){super.initState();initial={for(final f in FuelType.values)f:TextEditingController(text:widget.pump.readings[f]?.initialReading.toStringAsFixed(2)??'')};finalC={for(final f in FuelType.values)f:TextEditingController(text:widget.pump.readings[f]?.finalReading.toStringAsFixed(2)??'')};}
-  @override Widget build(BuildContext context){final vm=AppScope.of(context);return Scaffold(appBar:AppBar(title:Text('Bomba '+widget.pump.pumpNumber.toString())),body:ListView(padding:const EdgeInsets.all(20),children:[
-    const Text('Lecturas por combustible',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),const SizedBox(height:12),
-    ...FuelType.values.map((f)=>Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(fuelLabel(f),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:17)),const SizedBox(height:10),TextField(controller:initial[f],keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lectura inicial')),const SizedBox(height:8),TextField(controller:finalC[f],keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lectura final'))]))),
-    const SizedBox(height:14),FilledButton(onPressed:(){final readings=<FuelType,PumpFuelReading>{};for(final f in FuelType.values){readings[f]=PumpFuelReading(fuelType:f,initialReading:double.tryParse(initial[f]!.text)??-1,finalReading:double.tryParse(finalC[f]!.text)??-1);}final err=vm.savePump(widget.cut,widget.pump.pumpNumber,readings);if(err!=null){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(err)));return;}Navigator.pop(context);},child:const Text('Guardar bomba'))
-  ]));}
+  late final Map<FuelType,TextEditingController> initial;
+  late final Map<FuelType,TextEditingController> finalC;
+
+  @override void initState(){
+    super.initState();
+    initial={for(final f in FuelType.values) f:TextEditingController(text:widget.pump.readings[f]?.initialReading.toStringAsFixed(2)??'')};
+    finalC={for(final f in FuelType.values) f:TextEditingController(text:widget.pump.readings[f]?.finalReading.toStringAsFixed(2)??'')};
+  }
+
+  @override Widget build(BuildContext context){
+    final vm=AppScope.of(context);
+    return Scaffold(
+      appBar:AppBar(title:Text('Bomba '+widget.pump.pumpNumber.toString())),
+      body:ListView(padding:const EdgeInsets.all(20),children:[
+        const Text('Lecturas por combustible',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),
+        const SizedBox(height:12),
+        ...FuelType.values.map((f)=>Card(child:Padding(
+          padding:const EdgeInsets.all(14),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(fuelLabel(f),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:17)),
+            const SizedBox(height:10),
+            TextField(controller:initial[f],keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lectura inicial')),
+            const SizedBox(height:8),
+            TextField(controller:finalC[f],keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lectura final')),
+          ]),
+        ))),
+        const SizedBox(height:14),
+        FilledButton(
+          onPressed:(){
+            final readings=<FuelType,PumpFuelReading>{};
+            for(final f in FuelType.values){
+              readings[f]=PumpFuelReading(
+                fuelType:f,
+                initialReading:double.tryParse(initial[f]!.text)??-1,
+                finalReading:double.tryParse(finalC[f]!.text)??-1,
+              );
+            }
+            final err=vm.savePump(widget.cut,widget.pump.pumpNumber,readings);
+            if(err!=null){
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(err)));
+              return;
+            }
+            Navigator.pop(context);
+          },
+          child:const Text('Guardar bomba'),
+        ),
+      ]),
+    );
+  }
 }
 class CutSummaryScreen extends StatelessWidget{
   const CutSummaryScreen(this.cut,{super.key});final DailyCut cut;
